@@ -1,0 +1,138 @@
+import cv2
+import numpy as np
+import math
+
+cam = cv2.VideoCapture(0)
+        
+while 1:
+    ret, frame = cam.read()
+
+    if ret:
+        width, height = frame.shape[1], frame.shape[0]
+        
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        lower = np.uint8([180, 18, 255])
+        upper = np.uint8([0, 0, 231])
+
+        mask = cv2.inRange(hsv, lower, upper)
+        edges = cv2.Canny(mask, 75, 250)
+        
+        # cv2.imshow("mask", edges)
+        
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, maxLineGap=50)
+
+        if lines is not None:
+            for i in range(0, len(lines)):
+                l = lines[i][0]
+                cv2.line(frame, (l[0], l[1]), (l[2], l[3]), (0,0,255), 3, cv2.LINE_AA)
+        
+        # numbers to determine box on road that we will flatten out
+        box_x1 = round(width * .2) # top left
+        box_y1 = round(height * .7)
+        box_x2 = round(width * .8) # top right
+        box_y2 = round(height * .7)
+        box_x3 = round(width * .1) # bottom left
+        box_y3 = round(height * .9)
+        box_x4 = round(width * .9) # bottom right
+        box_y4 = round(height * .9)
+
+        # mid points on the frame
+        mid_x = round(width / 2)
+        mid_y = round(height / 2)
+
+        # change perspective
+        # perspective box points
+        pts1 = np.float32([[box_x1, box_y1], [box_x2, box_y2], [box_x3, box_y3],[box_x4, box_y4]])
+        pts2 = np.float32([[0,0],[width,0],[0,height],[width,height]])
+        # end perspective box points
+        
+        # change perspective to birds eye
+        matrix = cv2.getPerspectiveTransform(pts1, pts2)
+        birds_eye = cv2.warpPerspective(frame, matrix, (width, height))
+        # end change birds eye perspective
+        
+        grayscale = cv2.cvtColor(birds_eye, cv2.COLOR_BGR2GRAY)
+        
+        # smooth image
+        kernel_size = 5
+        blur = cv2.GaussianBlur(grayscale, (kernel_size, kernel_size), 0)
+        
+        # canny edge detection
+        low_t = 50
+        high_t = 95
+        edges = cv2.Canny(blur, low_t, high_t)
+        
+        # detect line with houg line transform
+        lines = cv2.HoughLinesP(edges, 1, np.pi / 180, 50, maxLineGap=50)
+        
+        # draw lines
+        try: # check we have iterable lines object
+            for line in lines:
+                x1, y1, x2, y2 = line[0]
+                
+                # classification right and left line
+                if x1 < mid_x or x2 < mid_x:
+                    x1_left = x1
+                    x2_left = x2
+                    y1_left = y1
+                    y2_left = y2
+                
+                elif x1 > mid_x or x2 > mid_x:
+                    x1_right = x1
+                    x2_right = x2
+                    y1_right = y1
+                    y2_right = y2  
+                
+                try:
+                    # calculate middle points
+                    x1_mid = int((x1_right + x1_left)/2)
+                    x2_mid = int((x2_right + x2_left)/2)
+                
+                    cv2.line(birds_eye, (mid_x, mid_y - 50), (x2_mid, mid_y + 50), (0, 255, 0), 2)
+                    
+                    # create straight reference line in middle of the frame
+                    cv2.line(birds_eye, (mid_x, mid_y - 50), (mid_x, mid_y + 50), (0, 0, 255), 2)
+                    
+                    # calculate three point between angle
+                    point_1 = [mid_x, mid_y - 50]
+                    point_2 = [mid_x, mid_y + 50]
+                    point_3 = [x2_mid, mid_y + 50]
+                    
+                    radian = np.arctan2(point_2[1] - point_1[1], point_2[0] - point_1[0]) - np.arctan2(point_3[1] - point_1[1], point_3[0] - point_1[0])
+                    angle = (radian * 180 / np.pi)
+                    
+                    # print("omega: ", angle)
+                    
+                    if angle < -20:
+                        print("Go left")
+                    elif angle > 20:
+                        print("Go right")
+                    elif angle > -25 and angle < 25:
+                        continue
+                except NameError:
+                    continue
+
+                # lane draw line red where lane edge detected
+                cv2.line(birds_eye, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        except TypeError:
+            # not iterable
+            print('no lines found')
+        
+        drawing_pts = np.array([[[box_x1, box_y1], [box_x2, box_y2], [box_x4, box_y4], [box_x3, box_y3]]], np.int32)
+        cv2.polylines(frame, [drawing_pts],True, (0, 255,),3)
+            
+        birds_eye = cv2.resize(birds_eye, (640, 360))
+        
+        cv2.imshow("birds_eye", birds_eye)
+        cv2.imshow("frame", frame)
+        
+        key = cv2.waitKey(1)
+        if (key == 27):
+            break
+    
+    elif ret == False:
+        break
+
+cam.release()
+cv2.destroyAllWindows()
