@@ -1,0 +1,111 @@
+#define BUTTON_PIN 4
+const int In1 = 8;
+const int In2 = 9;
+const int In3 = 10;
+const int In4 = 11;
+const int LeftEnA = 6;
+const int RightEnA = 5;
+int manualSpeed = 0;
+int speed = 0;
+
+
+void setup() {
+  pinMode(In1, OUTPUT);
+  pinMode(In2, OUTPUT);
+  pinMode(In3, OUTPUT);
+  pinMode(In4, OUTPUT);
+  pinMode(LeftEnA, OUTPUT);
+  pinMode(RightEnA, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  Serial.begin(9600);
+  goStraight();
+}
+
+void slowDown() {
+  speed = 2;
+}
+
+void setSpeed() {
+  analogWrite(LeftEnA, manualSpeed);
+  analogWrite(RightEnA, manualSpeed);
+}
+
+void Stop() {
+  digitalWrite(In1, LOW);
+  digitalWrite(In2, LOW);
+  digitalWrite(In3, LOW);
+  digitalWrite(In4, LOW);
+}
+
+void goStraight() {
+  digitalWrite(In1, HIGH);
+  digitalWrite(In2, LOW);
+  digitalWrite(In3, LOW);
+  digitalWrite(In4, HIGH);
+}
+
+void goLeft() {
+  digitalWrite(In1, LOW);
+  digitalWrite(In2, LOW);
+  digitalWrite(In3, LOW);
+  digitalWrite(In4, HIGH);
+}
+
+void goRight() {
+  digitalWrite(In1, HIGH);
+  digitalWrite(In2, LOW);
+  digitalWrite(In3, LOW);
+  digitalWrite(In4, LOW);
+}
+
+
+void loop() {
+  setSpeed();
+
+if (Serial.available() > 0){
+  String data = Serial.readStringUntil('\n');
+  if (data == "left") {
+    goLeft();
+    delay(1000);
+  } else if (data == "right") {
+    goRight();
+    delay(1000);
+  } else {
+    goStraight();
+  }
+}
+
+  if (digitalRead(BUTTON_PIN) == 0) {
+    speed = speed + 1;
+    delay(500);
+  }
+
+  if (speed == 4) {
+    speed = 0;
+  }
+
+  switch (speed) {
+    case 0:
+      {
+        manualSpeed = 0;
+      }
+      break;
+
+    case 1:
+      {
+        manualSpeed = 70;
+      }
+      break;
+
+    case 2:
+      {
+        manualSpeed = 150;
+      }
+      break;
+
+    case 3:
+      {
+        manualSpeed = 250;
+      }
+  }
+}
